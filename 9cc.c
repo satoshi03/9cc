@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 #include <string.h>
 
 // Tokenizer
@@ -87,7 +88,7 @@ Node *new_node_num(int val) {
 }
 
 // An error reporting function.
-void error(char *fmt, ...) {
+noreturn void error(char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
@@ -161,7 +162,7 @@ int gen_ir_sub(Node *node) {
     return lhs;
 }
 
-int gen_ir(Node *node) {
+void gen_ir(Node *node) {
     int r = gen_ir_sub(node);
     ins[inp++] = new_ir(IR_RETURN, r, 0);
 }
