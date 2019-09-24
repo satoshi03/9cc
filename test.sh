@@ -17,6 +17,13 @@ try () {
   fi
 }
 
+try_unit () {
+  ./9cc -test
+  if [ $? != 0 ]; then
+      echo "Unit test failed"
+      exit 1
+    fi
+}
 
 try 0 0
 try 42 42
@@ -31,5 +38,7 @@ try 26 '2*3+4*5'
 
 try 5 '50/10'
 try 9 '6*3/2'
+
+try_unit
 
 echo OK
