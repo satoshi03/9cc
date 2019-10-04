@@ -12,6 +12,7 @@
 /// util.c
 
 noreturn void error(char *fmt, ...);
+char *format(char *fmt, ...);
 
 typedef struct {
     void **data;
@@ -40,7 +41,8 @@ void util_test();
 
 enum {
     TK_NUM = 256, // Number literal
-    TK_IDENT,    // Identifier
+    TK_IDENT,     // Identifier
+    TK_IF,        // "if"
     TK_RETURN,    // "return"
     TK_EOF,       // End marker
 };
@@ -60,7 +62,8 @@ Vector *tokenize(char *p);
 enum {
     ND_NUM = 256, // Number literal
     ND_IDENT,     // Identifier
-    ND_RETURN,    // Return statement
+    ND_IF,        // "if"
+    ND_RETURN,    // "return"
     ND_COMP_STMT, // Compound statement
     ND_EXPR_STMT, // Expression statement
 };
@@ -74,6 +77,9 @@ typedef struct Node {
     struct Node *expr; // "return" or expression stmt
     Vector *stmts;     // Compound statement
 
+    // "if"
+    struct Node *cond;
+    struct Node *then;
 } Node;
 
 Node *parse(Vector *tokens);
@@ -81,9 +87,12 @@ Node *parse(Vector *tokens);
 /// ir.c
 
 enum {
-    IR_IMM,
+    IR_IMM = 256,
+    IR_ADD_IMM,
     IR_MOV,
     IR_RETURN,
+    IR_LABEL,
+    IR_UNLESS,
     IR_ALLOCA,
     IR_LOAD,
     IR_STORE,
@@ -95,12 +104,28 @@ typedef struct {
     int op;
     int lhs;
     int rhs;
-
-    bool has_imm;
-    int imm;
 } IR;
 
+enum {
+    IR_TY_NOARG,
+    IR_TY_REG,
+    IR_TY_LABEL,
+    IR_TY_REG_REG,
+    IR_TY_REG_IMM,
+    IR_TY_REG_LABEL,
+};
+
+typedef struct {
+    int op;
+    char *name;
+    int ty;
+} IRInfo;
+
+extern IRInfo irinfo[];
+IRInfo *get_irinfo(IR *ir);
+
 Vector *gen_ir(Node *node);
+void dump_ir(Vector *irv);
 
 /// regalloc.c
 
@@ -110,3 +135,6 @@ void alloc_regs(Vector *irv);
 /// codegen.c
 
 void gen_x86(Vector *irv);
+
+/// main.c
+char **argv;

@@ -1,5 +1,24 @@
 #include "9cc.h"
 
+IRInfo irinfo[] = {
+    {'+', "+", IR_TY_REG_REG},
+    {'-', "-", IR_TY_REG_REG},
+    {'*', "*", IR_TY_REG_REG},
+    {'/', "/", IR_TY_REG_REG},
+    {IR_IMM, "MOV", IR_TY_REG_IMM},
+    {IR_ADD_IMM, "ADD", IR_TY_REG_IMM},
+    {IR_MOV, "MOV", IR_TY_REG_REG},
+    {IR_LABEL, "", IR_TY_LABEL},
+    {IR_UNLESS, "UNLESS", IR_TY_REG_LABEL},
+    {IR_RETURN, "RET", IR_TY_REG},
+    {IR_ALLOCA, "ALLOCA", IR_TY_REG_IMM},
+    {IR_LOAD, "LOAD", IR_TY_REG_REG},
+    {IR_STORE, "STORE", IR_TY_REG_REG},
+    {IR_KILL, "KILL", IR_TY_REG},
+    {IR_NOP, "NOP", IR_TY_NOARG},
+    {0, NULL, 0},
+};
+
 static Vector *code;
 static int regno;
 static int basereg;
@@ -7,21 +26,44 @@ static int basereg;
 static Map *vars;
 static int bpoff;
 
+static int label;
+
+IRInfo *get_irinfo(IR *ir) {
+    for (IRInfo *info = irinfo; info->op; info++)
+        if (info->op == ir->op)
+            return info;
+    assert(0 && "invalid instruction");
+}
+
+static char *tostr(IR *ir) {
+    IRInfo *info = get_irinfo(ir);
+    switch (info->ty) {
+    case IR_TY_LABEL:
+        return format("%s:\n", ir->lhs);
+    case IR_TY_REG:
+        return format("%s r%d\n", info->name, ir->lhs);
+    case IR_TY_REG_REG:
+        return format("%s r%d, r%d\n", info->name, ir->lhs, ir->rhs);
+    case IR_TY_REG_IMM:
+        return format("%s r%d, %d\n", info->name, ir->lhs, ir->rhs);
+    case IR_TY_REG_LABEL:
+        return format("%s r%d, .L%s\n", info->name, ir->lhs, ir->rhs);
+    default:
+        assert(info->ty == IR_TY_NOARG);
+        return format("%s\n", info->name);
+    }
+}
+
+void dump_ir(Vector *irv) {
+    for (int i = 0; i < irv->len; i++)
+        fprintf(stderr, "%s", tostr(irv->data[i]));
+}
+
 static IR *add(int op, int lhs, int rhs) {
     IR *ir = calloc(1, sizeof(IR));
     ir->op = op;
     ir->lhs = lhs;
     ir->rhs = rhs;
-    vec_push(code, ir);
-    return ir;
-}
-
-static IR *add_imm(int op, int lhs, int imm) {
-    IR *ir = calloc(1, sizeof(IR));
-    ir->op = op;
-    ir->lhs = lhs;
-    ir->has_imm = true;
-    ir->imm = imm;
     vec_push(code, ir);
     return ir;
 }
@@ -38,7 +80,7 @@ static int gen_lval(Node *node) {
     int r = regno++;
     int off = (intptr_t)map_get(vars, node->name);
     add(IR_MOV, r, basereg);
-    add_imm('+', r, off);
+    add(IR_ADD_IMM, r, off);
     return r;
 }
 
@@ -74,6 +116,16 @@ static int gen_expr(Node *node) {
 }
 
 static void gen_stmt(Node *node) {
+    if (node->ty == ND_IF) {
+        int r = gen_expr(node->cond);
+        int x = label++;
+        add(IR_UNLESS, r, x);
+        add(IR_KILL, r, -1);
+        gen_stmt(node->then);
+        add(IR_LABEL, x, -1);
+        return;
+    }
+
     if (node->ty == ND_RETURN) {
         int r = gen_expr(node->expr);
         add(IR_RETURN, r, -1);
@@ -104,6 +156,7 @@ Vector *gen_ir(Node *node) {
     basereg = 0;
     vars = new_map();
     bpoff = 0;
+    label = 0;
 
     IR *alloca = add(IR_ALLOCA, basereg, -1);
     gen_stmt(node);

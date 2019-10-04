@@ -1,14 +1,7 @@
 #include "9cc.h"
 
-static char *gen_label() {
-    static int n;
-    char buf[10];
-    sprintf(buf, ".L%d", n++);
-    return strdup(buf);
-}
-
 void gen_x86(Vector *irv) {
-    char *ret = gen_label();
+    char *ret = ".Lend";
 
     printf("  push rbp\n");
     printf("  mov rbp, rsp\n");
@@ -20,12 +13,22 @@ void gen_x86(Vector *irv) {
         case IR_IMM:
             printf("  mov %s, %d\n", regs[ir->lhs], ir->rhs);
             break;
+        case IR_ADD_IMM:
+            printf("  add %s, %d\n", regs[ir->lhs], ir->rhs);
+            break;
         case IR_MOV:
             printf("  mov %s, %s\n", regs[ir->lhs], regs[ir->rhs]);
             break;
         case IR_RETURN:
             printf("  mov rax, %s\n", regs[ir->lhs]);
             printf("  jmp %s\n", ret);
+            break;
+        case IR_LABEL:
+            printf(".L%d:\n", ir->lhs);
+            break;
+        case IR_UNLESS:
+            printf("  cmp %s, 0\n", regs[ir->lhs]);
+            printf("  je .L%d\n", ir->rhs);
             break;
         case IR_ALLOCA:
             if (ir->rhs)
@@ -39,10 +42,7 @@ void gen_x86(Vector *irv) {
             printf("  mov [%s], %s\n", regs[ir->lhs], regs[ir->rhs]);
             break;
         case '+':
-            if (ir->has_imm)
-                printf("  add %s, %d\n", regs[ir->lhs], ir->imm);
-            else
-                printf("  add %s, %s\n", regs[ir->lhs], regs[ir->rhs]);
+            printf("  add %s, %s\n", regs[ir->lhs], regs[ir->rhs]);
             break;
         case '-':
             printf("  sub %s, %s\n", regs[ir->lhs], regs[ir->rhs]);
